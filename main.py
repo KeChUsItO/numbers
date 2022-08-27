@@ -1,13 +1,14 @@
-from Equation import Expression
-import matplotlib.pyplot as plt
 import numpy as np
-from sympy import symbols, sympify, S
+import parser
+import func_timeout
 from sympy.parsing.sympy_parser import parse_expr
-from sympy.calculus.util import continuous_domain
-OPERATORS = ["+", "-", "*", "/", "^"]
-FUNCTIONS = ["Sin", "Cos", "Tan", "Log"]
+from sympy import *
+import csv
 
-N_TERMS = 5
+OPERATORS = ["+", "-", "*", "/", "**"]
+FUNCTIONS = ["sin", "cos", "tan"]
+
+N_TERMS = 4
 
 
 def create_row():
@@ -27,6 +28,18 @@ def create_row():
     str_row += ")"
     return str_row
 
+
+def Operations(a, b, op):
+    if op == "+":
+        return a + b
+    elif op == "-":
+        return a - b
+    elif op == "*":
+        return a * b
+    elif op == "/":
+        return a / b
+
+
 DEPTH = 3
 
 
@@ -36,6 +49,7 @@ class TreeNode:
         self.depth = None
         self.children = []
         self.parent = None
+        self.operator = None
 
     def add_child(self, child):
         child.parent = self
@@ -53,7 +67,7 @@ class TreeNode:
         spaces = ' ' * self.get_level() * 3
         prefix = spaces + '|__' if self.parent else ""
 
-        print(prefix + self.data)
+        print(prefix + self.data + " (" + str(self.operator) + ")")
         if self.children:
             for child in self.children:
                 child.print_tree()
@@ -62,21 +76,16 @@ class TreeNode:
         string = ''
         for i, child in enumerate(self.children):
             if i == 0:
-                string += '['
-            if child.data == "fn":
-                string += np.random.choice(FUNCTIONS)
-            elif child.data == "n":
-                string += str(np.random.randint(0,1000))
-            else:
-                string += child.data
+                string += '('
+            string += child.data
 
-            if child.data == "fn":
+            if child.data in FUNCTIONS:
                 string += child.print_equation()
 
             if i == len(self.children) - 1:
-                string += "]"
+                string += ")"
             else:
-                string += np.random.choice(OPERATORS)
+                string += str(child.operator)
 
         return string
 
@@ -84,36 +93,103 @@ class TreeNode:
         if self.get_level() < DEPTH:
             n = np.random.randint(1, N_TERMS)
             for i in range(n):
-                if self.data not in ["x", "n"]:
+                if self.data in FUNCTIONS or self.data == '':
                     if self.depth > 1:
-                        child = TreeNode(np.random.choice(["fn", "x", "n"], p=[0.5, 0.25, 0.25]))
+                        selection = np.random.choice(["fn", "x", "n"], p=[0.5, 0.25, 0.25])
+                        if selection == "fn":
+                            child = TreeNode(np.random.choice(FUNCTIONS))
+                        elif selection == "n":
+                            child = TreeNode(str(np.random.randint(0, 10)))
+                        else:
+                            child = TreeNode(selection)
                     else:
-                        child = TreeNode(np.random.choice(["x", "n"]))
+                        selection = np.random.choice(["x", "n"])
+                        if selection == "n":
+                            child = TreeNode(str(np.random.randint(0, 10)))
+                        else:
+                            child = TreeNode(selection)
                     child.depth = self.depth - 1
+                    if i < n - 1:
+                        child.operator = np.random.choice(OPERATORS)
                     self.add_child(child)
             for ch in self.children:
                 ch.create_tree()
 
+    def calculate(self, var):
+        calc = True
+        oper = None
+        for child in self.children:
+            if child.data in FUNCTIONS:
+                calc = False
+        if calc == True:
+            for child in self.children:
+                if child.data == "x":
+                    n = var
+                else:
+                    n = float(child.data)
+                if oper != None:
+                    print(str(old_n) + str(oper) + (str(n)))
+                if child.operator != None:
+                    oper = child.operator
+                    print(oper)
+                old_n = n
+
+        for child in self.children:
+            child.calculate(var)
+
 
 CHOICES = ["fn", "x", "n"]
 
-
 eqs = []
-while len(eqs) < 10_000:
+quantity = 100
+
+Eq = TreeNode('')
+Eq.depth = DEPTH
+Eq.create_tree()
+Eq.print_tree()
+formula = Eq.print_equation()
+
+while len(eqs) < quantity:
     Eq = TreeNode('')
     Eq.depth = DEPTH
     Eq.create_tree()
     equation = Eq.print_equation()
 
-    if equation not in eqs:
-        eqs.append(equation)
+    if [equation] not in eqs:
+        eqs.append([equation])
 
-idxs = np.random.randint(0,10_000, 5)
-print(np.array(eqs)[idxs])
-for i, form in enumerate(np.array(eqs)[idxs]):
-    form = form[:-1]
-    form =form[1:]
+with open('innovators100.csv', 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerows(eqs)
 
-    print(form)
 
-    print("--------------")
+
+def evaluation(c):
+    return eval(c)
+
+
+steps = 100
+data = []
+for eq in eqs:
+    ex =  parse_expr(eq[0])
+    x = Symbol('x')
+
+
+
+    x1 = []
+    x2 = []
+    y = eq[0]
+    print(y)
+    for i in range(steps):
+        x = np.random.randint(-10_000, 10_000)
+        x1.append(x)
+        try:
+            sol = ex.evalf(subs={x: x})
+            x2.append(sol)
+        except:
+            x2.append("-")
+            break
+
+    data.append([x1, x2, y])
+    print(len(data))
+print(data[100])
